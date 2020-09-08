@@ -9,6 +9,7 @@ class Session:
         newvar.val = val
 
         self.vars.append(newvar)
+        return newvar
 
     def checkVar(self, string):
         """
@@ -18,6 +19,7 @@ class Session:
         if not: create a variable. returns the cre-
         ated variable.
         """
+        print(string)
         for var in self.vars:
             if var.name == string:
                 return var
@@ -99,37 +101,7 @@ class Stacks(Session):
     def collapseStack(self):
         """expand numStack to produce a collapsed result"""
 
-        def evaluate(i):
-            if isinstance(left, float) and isinstance(right, float):
-                self.numStack.pop(i)
-                self.numStack.pop(i)  # pop twice: x, and x+1
-                self.bracket.pop(i)
-                self.opStack.pop(i)
-                self.priority.pop(i)
-
-                if o == _plus:
-                    self.numStack.insert(i, left + right)
-                elif o == _minus:
-                    self.numStack.insert(i, left - right)
-                elif o == _product:
-                    self.numStack.insert(i, left * right)
-                elif o == _divide:
-                    self.numStack.insert(i, left / right)
-                elif o == _exponent:
-                    self.numStack.insert(i, left ** right)
-
-                print(self.numStack)
-                print(self.opStack)
-                print(self.priority)
-                print(self.bracket)
-                print()
-
-        for layer in reversed(range(0, max(self.bracket) + 1)):
-            print(self.numStack)
-            print(self.opStack)
-            print(self.priority)
-            print(self.bracket)
-            print()
+        for layer in reversed(range(min(self.bracket), max(self.bracket) + 1)):
 
             bracket_l = self.bracket.index(layer)
             bracket_r = len(self.bracket) - self.bracket[::-1].index(layer)
@@ -148,12 +120,31 @@ class Stacks(Session):
                 right = self.numStack[i + 1]
                 o = self.opStack[i]
 
-                evaluate(i)
+                if isinstance(left, float) and isinstance(right, float):
+                    self.numStack.pop(i)
+                    self.numStack.pop(i)  # pop twice: x, and x+1
+                    self.bracket.pop(i)
+                    self.opStack.pop(i)
+                    self.priority.pop(i)
+
+                    if o == _plus:
+                        self.numStack.insert(i, left + right)
+                    elif o == _minus:
+                        self.numStack.insert(i, left - right)
+                    elif o == _product:
+                        self.numStack.insert(i, left * right)
+                    elif o == _divide:
+                        self.numStack.insert(i, left / right)
+                    elif o == _exponent:
+                        self.numStack.insert(i, left ** right)
 
                 if len(self.opStack) == 0:
                     return self
 
-            print(self.numStack)
+                print(self.numStack)
+                print(self.priority)
+                print(self.bracket)
+                print()
 
 
 class Variable(Session):
