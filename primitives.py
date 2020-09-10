@@ -49,7 +49,6 @@ class Fraction(Session):
     def __init__(self, up, down):
         super().__init__()
         self.top, self.bottom = self.gcd(up, down)
-        print(self.top, self.bottom)
 
     def gcd(self, a, b):
         _, amod = str(float(a)).split(".")
@@ -98,6 +97,10 @@ class Fraction(Session):
     def __str__(self):
         return "{}/{}".format(int(self.top), int(self.bottom))
 
+    def __pow__(self, exponent):
+        ans = Fraction(self.top ** exponent, self.bottom ** exponent)
+        return ans
+
 
 class Polynomial(Session):
     def __init__(self):
@@ -112,6 +115,39 @@ class Stacks(Session):
         self.opStack = []
         self.priority = []
         self.bracket = []
+
+    def prettyPrint(self):
+        for i in range(0, len(self.numStack)):
+            print("{:_^10}".format(i), end="")
+        print()
+        for x in self.numStack:
+            print("{:^10}".format(str(x)), end="")
+        print()
+        for x in self.opStack:
+            print("{:>10}".format(x.str_rp), end="")
+        print()
+        evaled = False
+        print("     ", end="")
+        for x, y in zip(self.priority, self.bracket):
+
+            def next_bracket_layer(n):
+                indices = [
+                    i for i, x in enumerate(self.bracket) if x == max(self.bracket) - n
+                ]
+
+                if len(indices) == 0:
+                    next_bracket_layer(n + 1)
+                else:
+                    return indices[0], indices[-1] + 1
+
+            l, r = next_bracket_layer(0)
+
+            if x == max(self.priority[l:r]) and not evaled:
+                print("{:^10}".format("NEXT^EVAL"), end="")
+                evaled = True
+            else:
+                print("{:^10}".format(""), end="")
+        print()
 
     def parse(self, inputString):
         h = 0
@@ -149,7 +185,7 @@ class Stacks(Session):
 
                         pass
                     else:
-                        self.numStack.append(inputString[h:i])
+                        self.numStack.append(inputString[h:i].strip("()"))
 
                     self.opStack.append(operand)
                     self.priority.append(operand.priority)
@@ -169,36 +205,48 @@ class Stacks(Session):
         """
         fold up numstack into object, create new variable as necessary.
         """
-        print(self.numStack)
         newStack = []
         for obj in self.numStack:
-            if obj.replace(".","").isnumeric():
+            if obj.replace(".", "").isnumeric():
                 newStack.append(float(obj))
 
             else:
                 newStack.append(super().checkVar(obj))
 
         self.numStack = newStack
-        print(self.numStack)
         return self
 
     def collapseStack(self):
         """expand numStack to produce a collapsed result"""
 
+        """example:
+            number stack: 1,2,3,4
+            operand stack: + / *
+            bracket stack: 1 1 0
+
+        a.k.a (1+2/3)*4
+        """
+
+        self.prettyPrint()
+
         for layer in reversed(range(min(self.bracket), max(self.bracket) + 1)):
 
-            bracket_l = self.bracket.index(layer)
-            bracket_r = len(self.bracket) - self.bracket[::-1].index(layer)
+            bracket_l = self.bracket.index(layer)  # 0
+            bracket_r = len(self.bracket) - self.bracket[::-1].index(layer)  # 3-1=2
 
-            for num in range(0, bracket_r + 1 - bracket_l):
-
+            for num in range(0, bracket_r - bracket_l):  # range(0,2),two executions.
                 i = (
                     self.priority[bracket_l:bracket_r].index(
                         max(self.priority[bracket_l:bracket_r])
                     )
                     + bracket_l
                 )
-                print("i = {}".format(i + bracket_l))
+                """
+                    self.priority[0:2]-> (1,2)
+                    (1,2).index(max(1,2)) = 1
+                    1+bracket_l = 1+0 =1
+
+                """
 
                 left = self.numStack[i]
                 right = self.numStack[i + 1]
@@ -224,16 +272,22 @@ class Stacks(Session):
                 elif o == _exponent:
                     self.numStack.insert(i, left ** right)
 
+                self.prettyPrint()
+
                 if len(self.opStack) == 0:
                     break
 
-                print(self.numStack)
-                print(self.priority)
-                print(self.bracket)
-                print()
+                # bracket_r = len(self.bracket) - self.bracket[::-1].index(layer)
+                bracket_r -= 1  # equivalent expression
 
-        print("collapsed:")
-        print(self.numStack)
+                """updates the bracket information:
+                    number stack: 1,2/3,4
+                    operand stack: +   x
+                    bracket stack  1   0
+
+                    bracket_l is constant as stack evaluation only pops from the right
+                    bracket_r is shrunk one to account for popped info: 2-1=1 
+                """
 
     def interactiveEval(self):
         pass
@@ -276,11 +330,7 @@ _product = Operand("*", 2)
 _divide = Operand("/", 2)
 _equal = Operand("=", 0)
 _exponent = Operand("^", 3)
-_sin = Operand("SIN", 4)
-_cos = Operand("COS", 4)
-_tan = Operand("TAN", 4)
 
 basic_operands = [_plus, _minus, _product, _divide, _equal, _exponent]
-trigonometry = [_sin, _cos, _tan]
 
-all_operands = basic_operands + trigonometry
+all_operands = basic_operands
