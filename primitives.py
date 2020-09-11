@@ -102,12 +102,6 @@ class Fraction(Session):
         return ans
 
 
-class Polynomial(Session):
-    def __init__(self):
-        super().__init__()
-        self.var = None
-
-
 class Stacks(Session):
     def __init__(self):
         super().__init__()
@@ -117,36 +111,48 @@ class Stacks(Session):
         self.bracket = []
 
     def prettyPrint(self):
+        width = 20
         for i in range(0, len(self.numStack)):
-            print("{:_^10}".format(i), end="")
+            print("{:_^{}}".format(i, width), end="")
         print()
         for x in self.numStack:
-            print("{:^10}".format(str(x)), end="")
+            print("{:^{}}".format(str(x), width), end="")
         print()
         for x in self.opStack:
-            print("{:>10}".format(x.str_rp), end="")
+            print("{:>{}}".format(x.str_rp, width), end="")
         print()
         evaled = False
-        print("     ", end="")
+        print("{}".format(" " * int(width / 2)), end="")
         for x, y in zip(self.priority, self.bracket):
 
             def next_bracket_layer(n):
                 indices = [
                     i for i, x in enumerate(self.bracket) if x == max(self.bracket) - n
                 ]
-
+                not_indices = [
+                    i for i in range(0, len(self.bracket)) if i not in indices
+                ]
                 if len(indices) == 0:
                     next_bracket_layer(n + 1)
                 else:
-                    return indices[0], indices[-1] + 1
+                    if len(not_indices) == 0:
+                        return indices[0], indices[-1] + 1
+                    else:
+                        """for example 1+(2+3)*(1/4)
+                        """
+                        next_non_index = [i for i in not_indices if i > indices[0]]
+                        if len(next_non_index) > 0:
+                            return indices[0], min(next_non_index)
+                        else:
+                            return indices[0], indices[-1] + 1
 
             l, r = next_bracket_layer(0)
 
             if x == max(self.priority[l:r]) and not evaled:
-                print("{:^10}".format("NEXT^EVAL"), end="")
+                print("{:^{}}".format("NEXT^EVAL", width), end="")
                 evaled = True
             else:
-                print("{:^10}".format(""), end="")
+                print("{:^{}}".format("", width), end="")
         print()
 
     def parse(self, inputString):
@@ -231,10 +237,22 @@ class Stacks(Session):
 
         for layer in reversed(range(min(self.bracket), max(self.bracket) + 1)):
 
-            bracket_l = self.bracket.index(layer)  # 0
-            bracket_r = len(self.bracket) - self.bracket[::-1].index(layer)  # 3-1=2
+            indices = [i for i, x in enumerate(self.bracket) if x == layer]
+            # in this case: 0,1
+            not_indices = [i for i in range(0, len(self.bracket)) if i not in indices]
+            # in this case: 2
 
-            for num in range(0, bracket_r - bracket_l):  # range(0,2),two executions.
+            bracket_l = indices[0]
+            if len(not_indices) > 0:
+                next_non_index = [i for i in not_indices if i > indices[0]]
+                if len(next_non_index) > 0:
+                    bracket_r = min(next_non_index)
+                else:
+                    bracket_r = indices[-1] + 1
+            else:
+                bracket_r = indices[-1] + 1
+
+            for num in range(0, len(indices)):  # range(0,2),two executions.
                 i = (
                     self.priority[bracket_l:bracket_r].index(
                         max(self.priority[bracket_l:bracket_r])
@@ -265,10 +283,11 @@ class Stacks(Session):
                 elif o == _product:
                     self.numStack.insert(i, left * right)
                 elif o == _divide:
-                    if isinstance(left, Fraction) or isinstance(right, Fraction):
-                        self.numStack.insert(i, left / right)
-                    else:
+                    if isinstance(left, float) and isinstance(right, float):
                         self.numStack.insert(i, Fraction(left, right))
+                    else:
+                        self.numStack.insert(i, left / right)
+
                 elif o == _exponent:
                     self.numStack.insert(i, left ** right)
 
@@ -276,9 +295,6 @@ class Stacks(Session):
 
                 if len(self.opStack) == 0:
                     break
-
-                # bracket_r = len(self.bracket) - self.bracket[::-1].index(layer)
-                bracket_r -= 1  # equivalent expression
 
                 """updates the bracket information:
                     number stack: 1,2/3,4
@@ -289,6 +305,26 @@ class Stacks(Session):
                     bracket_r is shrunk one to account for popped info: 2-1=1 
                 """
 
+                indices = [i for i, x in enumerate(self.bracket) if x == layer]
+                # in this case: 0,1
+                not_indices = [
+                    i for i in range(0, len(self.bracket)) if i not in indices
+                ]
+                # in this case: 2
+
+                if len(indices) == 0:
+                    break
+
+                bracket_l = indices[0]
+                if len(not_indices) > 0:
+                    next_non_index = [i for i in not_indices if i > indices[0]]
+                    if len(next_non_index) > 0:
+                        bracket_r = min(next_non_index)
+                    else:
+                        bracket_r = indices[-1] + 1
+                else:
+                    bracket_r = indices[-1] + 1
+
     def interactiveEval(self):
         pass
 
@@ -297,7 +333,161 @@ class Variable(Session):
     def __init__(self):
         super().__init__()
         self.name = None
-        self.val = []
+        self.val = None
+
+    def __str__(self):
+        return self.name
+
+    def __add__(self, other):
+        ans = Polynomial([self], [1], [[1]])
+        if isinstance(other, Variable):
+            # x + y
+            ans.newLeaf(other, 1, 1)
+        elif isinstance(other, Fraction) or isinstance(other, float):
+            # x + 1/2
+            ans.newLeaf(self, other, 0)  # x+ 1/2*x^0
+
+        return ans
+
+    __radd__ = __add__
+
+    def __mul__(self, other):
+        if isinstance(other, float) or isinstance(other, Fraction):
+            return Polynomial([self], [other], [[1]])
+
+    __rmul__ = __mul__
+
+
+class Polynomial(Session):
+    """polynomial data structure:
+    example:2a+3b+5ab
+
+    self.var:           list,           e.g. [a,b]
+    self.coefficient:   list,           e.g. [2,3,5]
+    self.exponent:      nested list,    e.g. [[1,0],[0,1],[1,1]]
+
+
+
+    """
+
+    def __init__(self, v, coe, exp):
+        super().__init__()
+        self.variable = v
+        self.coefficient = coe
+        self.exponent = exp
+
+    def extendVars(self, vars):
+        for var in vars:
+            if var not in self.variable:
+                self.variable.append(var)
+                self.exponent = [i + [0] for i in self.exponent]
+
+    def comb(self):
+        pass
+
+
+    def __mul__(self, other):
+        if isinstance(other, float) or isinstance(other, Fraction):
+            newPoly = Polynomial(
+                self.variable, [x * other for x in self.coefficient], self.exponent
+            )
+            return newPoly
+        elif isinstance(other, Variable):
+            newPoly = Polynomial(
+                self.variable + [other],
+                self.coefficient,
+                [i + [1] for i in self.exponent],
+            )
+            return newPoly
+        elif isinstance(other, Polynomial):
+            """Polynomial Multiplication
+            example:(2a^2-b)(a+b) = 2a^3-ab+2a^2b-b^2
+
+            var stack:      a,b              a,b            a,b
+            coefficient:    2,-1             1,1            2,-1,2,-1
+            exponent:       2,1              1,1            (3,0),(1,1),(2,1),(1,2)
+            """
+            all_vars = self.variable + [
+                i for i in other.variable if i not in self.variable
+            ]
+            newCoe = [
+                self.coefficient[i] * other.coefficient[g]
+                for g in range(0, len(other.coefficient))
+                for i in range(0, len(self.coefficient))
+            ]
+
+            self.extendVars(all_vars)
+            other.extendVars(all_vars)
+
+            newExp = []
+            for v in all_vars:
+                
+                vExp = [
+                    self.exponent[i][self.variable.index(v)]
+                    + other.exponent[g][other.variable.index(v)]
+                    for g in range(0, len(other.exponent))
+                    for i in range(0, len(self.exponent))
+                ]
+                if newExp == []:
+                    newExp = [[i] for i in vExp]
+                else:
+                    newExp = [newExp[i] + [vExp[i]] for i in range(0, len(vExp))]
+
+            ans = Polynomial(all_vars, newCoe, newExp)
+            return ans
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, other):
+        if isinstance(other, float) or isinstance(other, Fraction):
+            newPoly = Polynomial(
+                self.variable, [x / other for x in self.coefficient], self.exponent
+            )
+            return newPoly
+        elif isinstance(other, Variable):
+            newPoly = Polynomial(
+                self.variable + [other],
+                self.coefficient,
+                [i + [-1] for i in self.exponent],
+            )
+            return newPoly
+
+    def __str__(self):
+        string = ""
+        for i in range(0, len(self.coefficient)):
+            if self.coefficient[i] > 0:
+                if self.coefficient[i] == 1 and max(self.exponent[i]) > 0:
+                    string += "+"
+                else:
+                    string += "+{}".format(self.coefficient[i])
+            else:
+                if self.coefficient[i] == -1 and max(self.exponent[i]) > 0:
+                    string += "+"
+                else:
+                    string += "-{}".format(self.coefficient[i])
+
+            for v in range(0, len(self.variable)):
+                if self.exponent[i][v] == 0:
+                    pass
+                elif self.exponent[i][v] == 1:
+                    string += "{}".format(self.variable[v])
+                elif self.exponent[i][v] == -1:
+                    string += "/{}".format(self.variable[v])
+                else:
+                    string += "{}^{}".format(self.variable[v], self.exponent[i][v])
+
+        if string[0] == "-":
+            return string
+        else:
+            return string[1:]
+
+    def newLeaf(self, var, coe, exp):
+        if var in self.variable:
+            pass
+        else:
+            self.variable.append(var)
+        self.coefficient.append(coe)
+        self.exponent.append([exp])
 
 
 class Operand:

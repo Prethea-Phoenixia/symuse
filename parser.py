@@ -1,6 +1,6 @@
 from primitives import *
 
-inputstring = "(1+1/1.5*14)^2"
+inputstring = "(x+1)*(y+1)"
 s = Session()
 a = s.parseNewLine(inputstring)
 a.stack.collapseStack()
