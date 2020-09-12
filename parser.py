@@ -1,6 +1,6 @@
 from primitives import *
 
-inputstring = "(x+1)*(y+1)"
+inputstring = "(x+1)*(x+1)"
 s = Session()
 a = s.parseNewLine(inputstring)
 a.stack.collapseStack()

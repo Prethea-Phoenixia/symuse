@@ -375,6 +375,7 @@ class Polynomial(Session):
         self.variable = v
         self.coefficient = coe
         self.exponent = exp
+        self.comb()
 
     def extendVars(self, vars):
         for var in vars:
@@ -383,8 +384,18 @@ class Polynomial(Session):
                 self.exponent = [i + [0] for i in self.exponent]
 
     def comb(self):
-        pass
-
+        i = 0
+        while i < len(self.coefficient) - 1:
+            j = i + 1
+            while j < len(self.coefficient):
+                if self.exponent[i] == self.exponent[j]:
+                    new_coe = self.coefficient[i] + self.coefficient[j]
+                    self.coefficient.pop(i)
+                    self.coefficient.pop(j - 1)
+                    self.exponent.pop(j)
+                    self.coefficient.insert(i, new_coe)
+                j += 1
+            i += 1
 
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, Fraction):
@@ -421,7 +432,7 @@ class Polynomial(Session):
 
             newExp = []
             for v in all_vars:
-                
+
                 vExp = [
                     self.exponent[i][self.variable.index(v)]
                     + other.exponent[g][other.variable.index(v)]
