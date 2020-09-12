@@ -384,6 +384,7 @@ class Polynomial(Session):
                 self.exponent = [i + [0] for i in self.exponent]
 
     def comb(self):
+        """merge similiar terms """
         i = 0
         while i < len(self.coefficient) - 1:
             j = i + 1
@@ -462,6 +463,11 @@ class Polynomial(Session):
                 [i + [-1] for i in self.exponent],
             )
             return newPoly
+
+        elif isinstance(other, Polynomial):
+            """polynomial division, returns a fraction object"""
+            newFract = Fraction(self, other)
+            return newFract
 
     def __str__(self):
         string = ""
