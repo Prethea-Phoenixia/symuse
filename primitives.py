@@ -412,11 +412,9 @@ class Polynomial(Session):
                     i[self.variable.index(other)] += 1
             else:
                 allVars = self.variable + [other]
-                newExp =  [i + [1] for i in self.exponent]
+                newExp = [i + [1] for i in self.exponent]
 
-            newPoly = Polynomial(
-                allVars, self.coefficient,newExp
-            )
+            newPoly = Polynomial(allVars, self.coefficient, newExp)
         elif isinstance(other, Polynomial):
             """Polynomial Multiplication
             example:(2a^2-b)(a+b) = 2a^3-ab+2a^2b-b^2
@@ -499,6 +497,8 @@ class Polynomial(Session):
             ans = Polynomial(self.variable, self.coefficient, self.exponent)
             ans.newLeaf(other, 1, 1)
         return ans
+
+    __radd__ = __add__
 
     def __truediv__(self, other):
         if isinstance(other, float) or isinstance(other, Fraction):
