@@ -111,6 +111,7 @@ class Stacks(Session):
         self.bracket = []
 
     def prettyPrint(self):
+
         width = 20
         for i in range(0, len(self.numStack)):
             print("{:_^{}}".format(i, width), end="")
@@ -403,14 +404,19 @@ class Polynomial(Session):
             newPoly = Polynomial(
                 self.variable, [x * other for x in self.coefficient], self.exponent
             )
-            return newPoly
         elif isinstance(other, Variable):
+            if other in self.variable:
+                allVars = self.variable
+                newExp = self.exponent
+                for i in newExp:
+                    i[self.variable.index(other)] += 1
+            else:
+                allVars = self.variable + [other]
+                newExp =  [i + [1] for i in self.exponent]
+
             newPoly = Polynomial(
-                self.variable + [other],
-                self.coefficient,
-                [i + [1] for i in self.exponent],
+                allVars, self.coefficient,newExp
             )
-            return newPoly
         elif isinstance(other, Polynomial):
             """Polynomial Multiplication
             example:(2a^2-b)(a+b) = 2a^3-ab+2a^2b-b^2
@@ -445,10 +451,54 @@ class Polynomial(Session):
                 else:
                     newExp = [newExp[i] + [vExp[i]] for i in range(0, len(vExp))]
 
-            ans = Polynomial(all_vars, newCoe, newExp)
-            return ans
+            newPoly = Polynomial(all_vars, newCoe, newExp)
+        return newPoly
 
     __rmul__ = __mul__
+
+    def __add__(self, other):
+        if isinstance(other, float) or isinstance(other, Fraction):
+            ans = Polynomial(
+                self.variable,
+                self.coefficient + [other],
+                self.exponent + [[0] * len(self.variable)],
+            )
+
+        elif isinstance(other, Polynomial):
+            allVar = self.variable
+            for oVar in other.variable:
+                if oVar in allVar:
+                    pass
+                else:
+                    allVar.append(oVar)
+
+            nVars = len(allVar)
+
+            selfAllExp = [[0] * nVars] * len(self.exponent)
+            for var in self.variable:
+                for i in len(self.exponent):
+                    selfAllExp[i][allVar.index(var)] = self.exponent[i][
+                        self.variable.index(var)
+                    ]
+
+            otherAllExp = [[0] * nVars] * len(other.exponent)
+            for var in other.variable:
+                for i in len(other.exponent):
+                    otherAllExp[i][allVar.index(var)] = other.exponent[i][
+                        other.variable.index(var)
+                    ]
+
+            ans = Polynomial(
+                allVar,
+                self.coefficient.extend(other.coefficient),
+                selfAllExp.extend(otherAllExp),
+            )
+            ans.comb()
+
+        elif isinstance(other, Variable):
+            ans = Polynomial(self.variable, self.coefficient, self.exponent)
+            ans.newLeaf(other, 1, 1)
+        return ans
 
     def __truediv__(self, other):
         if isinstance(other, float) or isinstance(other, Fraction):
@@ -503,8 +553,11 @@ class Polynomial(Session):
             pass
         else:
             self.variable.append(var)
+            self.exponent = [i + [0] for i in self.exponent]
+
         self.coefficient.append(coe)
-        self.exponent.append([exp])
+        self.exponent.append([0] * len(self.variable))
+        self.exponent[-1][self.variable.index(var)] = exp
 
 
 class Operand:
