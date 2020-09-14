@@ -1,6 +1,3 @@
-import string
-
-
 class Session:
     def __init__(self):
         self.funcs = []
@@ -47,7 +44,11 @@ class Function(Session):
 
 class Fraction(Session):
     """Functions to handle exact fractions,
-        for example 1/3"""
+        for example 1/3
+
+        Comparison operators are overloaded
+        to compare its numerical values.
+    """
 
     def __init__(self, up, down):
         super().__init__()
@@ -104,8 +105,42 @@ class Fraction(Session):
         ans = Fraction(self.top ** exponent, self.bottom ** exponent)
         return ans
 
+    def numericVal(self):
+        return self.top / self.bottom
+
+    def __eq__(self, val):
+        return self.numericVal() == val
+
+    def __ne__(self, val):
+        return self.numericVal() != val
+
+    def __ge__(self, val):
+        return self.numericVal() >= val
+
+    def __le__(self, val):
+        return self.numericVal() <= val
+
+    def __lt__(self, val):
+        return self.numericVal() < val
+
+    def __gt__(self, val):
+        return self.numericVal() > val
+
 
 class Stacks(Session):
+    """
+    main equation comprehension& calculation with priority
+    e.g. (1+2/3)*4
+    numStack  1,2,3,4
+    opStack    + / *
+    priority   1 2 2
+    bracket    1 1 0
+
+    evaluation: Highest bracket level, Highest priority, Left->Right.
+    (arithmetic math input logic.)
+
+    """
+
     def __init__(self):
         super().__init__()
         self.numStack = []
@@ -355,11 +390,27 @@ class Variable(Session):
 
     __radd__ = __add__
 
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __rsub__(self, other):
+        return other + -1.0 * self
+
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, Fraction):
             return Polynomial([self], [other], [[1]])
 
     __rmul__ = __mul__
+
+    def __truediv__(self, other):
+        if isinstance(other, float):
+            return Polynomial([self], [Fraction(1, other)], [[1]])
+        elif isinstance(other, Fraction):
+            return Polynomial([self], [1 / other], [[1]])
+
+    def __rtruediv__(self, other):
+        if isinstance(other, float) or isinstance(other, Fraction):
+            return Polynomial([self], [other], [[-1]])
 
 
 # fmt:off
@@ -438,6 +489,12 @@ class Polynomial(Session):
                 j += 1
             i += 1
 
+            for c in self.coefficient:
+                if c == 0:
+                    i = self.coefficient.index(c)
+                    self.coefficient.pop(i)
+                    self.exponent.pop(i)
+
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, Fraction):
             newPoly = Polynomial(
@@ -513,22 +570,20 @@ class Polynomial(Session):
 
             selfAllExp = [[0] * nVars] * len(self.exponent)
             for var in self.variable:
-                for i in len(self.exponent):
+                for i in range(len(self.exponent)):
                     selfAllExp[i][allVar.index(var)] = self.exponent[i][
                         self.variable.index(var)
                     ]
 
             otherAllExp = [[0] * nVars] * len(other.exponent)
             for var in other.variable:
-                for i in len(other.exponent):
+                for i in range(len(other.exponent)):
                     otherAllExp[i][allVar.index(var)] = other.exponent[i][
                         other.variable.index(var)
                     ]
 
             ans = Polynomial(
-                allVar,
-                self.coefficient.extend(other.coefficient),
-                selfAllExp.extend(otherAllExp),
+                allVar, self.coefficient + other.coefficient, selfAllExp + otherAllExp,
             )
             ans.comb()
 
@@ -539,26 +594,8 @@ class Polynomial(Session):
 
     __radd__ = __add__
 
-    def __truediv__(self, other):
-        if isinstance(other, float) or isinstance(other, Fraction):
-            newPoly = Polynomial(
-                self.variable, [x / other for x in self.coefficient], self.exponent
-            )
-            return newPoly
-        elif isinstance(other, Variable):
-            newPoly = Polynomial(
-                self.variable + [other],
-                self.coefficient,
-                [i + [-1] for i in self.exponent],
-            )
-            return newPoly
-
-        elif isinstance(other, Polynomial):
-            """polynomial division, returns a fraction object"""
-            newFract = Fraction(self, other)
-            return newFract
-
     def __str__(self):
+        """string representation of Polynomial, human readable form"""
         string = ""
         for i in range(0, len(self.coefficient)):
             if self.coefficient[i] > 0:
@@ -568,7 +605,7 @@ class Polynomial(Session):
                     string += "+{}".format(self.coefficient[i])
             else:
                 if self.coefficient[i] == -1 and max(self.exponent[i]) > 0:
-                    string += "+"
+                    string += "-"
                 else:
                     string += "-{}".format(self.coefficient[i])
 
@@ -577,17 +614,43 @@ class Polynomial(Session):
                     pass
                 elif self.exponent[i][v] == 1:
                     string += "{}".format(self.variable[v])
-                elif self.exponent[i][v] == -1:
-                    string += "/{}".format(self.variable[v])
                 else:
                     string += "{}{}".format(
-                        self.variable[v], str(self.exponent[i][v]).translate(super_trans)
+                        self.variable[v],
+                        str(self.exponent[i][v]).translate(super_trans),
                     )
 
         if string[0] == "-":
             return string
         else:
             return string[1:]
+
+    def __truediv__(self, other):
+        if isinstance(other, float) or isinstance(other, Fraction):
+            ans = Polynomial(
+                self.variable, [i / other for i in self.coefficient], self.exponent
+            )
+            return ans
+        elif isinstance(other, Variable):
+            if other in self.variable:
+                newExp = self.exponent
+                for i in newExp:
+                    i[self.variable.index(other)] -= 1
+                ans = Polynomial(self.variable, self.coefficient, newExp)
+            else:
+                ans = Polynomial(
+                    self.variable + [other],
+                    self.coefficient,
+                    [i + [-1] for i in self.exponent],
+                )
+
+            ans.comb()
+            return ans
+
+        elif isinstance(other, Polynomial):
+            """polynomial division, returns a fraction object"""
+            newFract = Fraction(self, other)
+            return newFract
 
     def newLeaf(self, var, coe, exp):
         if var in self.variable:
