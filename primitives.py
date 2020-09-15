@@ -52,35 +52,59 @@ class Fraction(Session):
 
     def __init__(self, up, down):
         super().__init__()
-        self.top, self.bottom = self.gcd(up, down)
+        if isinstance(up, Polynomial) or isinstance(down, Polynomial):
+            self.top, self.bottom = up, down
+        else:
+            if isinstance(up, Fraction) or isinstance(down, Fraction):
+                self.top, self.bottom = (up / down).top, (up / down).bottom
+            else:
+                self.top, self.bottom = self.reduce(up, down)
 
-    def gcd(self, a, b):
-        _, amod = str(float(a)).split(".")
-        _, bmod = str(float(b)).split(".")
+    def reduce(self, a, b):
+        """ technically almost equivalent to stock math.gcd
+            returns the 2 vars divided by their GCD
+        """
+        m = max(a, b)
+        n = min(a, b)
+        while n != 0:
+            (m, n) = (n, m % n)
 
-        from math import gcd as mgcd
-
-        div = mgcd(int(abs(a) * 10 ** len(amod)), int(abs(b) * 10 ** len(bmod)))
-        return (a / div * 10 ** len(amod), b / div * 10 ** len(amod))
+        return a / m, b / m
 
     def __add__(self, other):
-        ans = Fraction(other * self.bottom + self.top, self.bottom)
+        if not isinstance(other, Fraction):
+            ans = Fraction(other * self.bottom + self.top, self.bottom)
+        else:
+            ans = Fraction(
+                self.top * other.bottom + other.top * self.bottom,
+                self.bottom * other.bottom,
+            )
         return ans
 
     def __sub__(self, other):
-        ans = Fraction(-other * self.bottom + self.top, self.bottom)
+        if not isinstance(other, Fraction):
+            ans = Fraction(-1.0 * other * self.bottom + self.top, self.bottom)
+        else:
+            ans = Fraction(
+                self.top * other.bottom - other.top * self.bottom,
+                self.bottom * other.bottom,
+            )
         return ans
 
     def __mul__(self, other):
         if not isinstance(other, Fraction):
             ans = Fraction(self.top * other, self.bottom)
-            return ans
+
         else:
             ans = Fraction(self.top * other.top, self.bottom * other.bottom)
-            return ans
+
+        return ans
 
     def __truediv__(self, other):
-        ans = Fraction(self.top, self.bottom * other)
+        if not isinstance(other, Fraction):
+            ans = Fraction(self.top, self.bottom * other)
+        else:
+            ans = Fraction(self.top * other.bottom, self.bottom * other.top)
         return ans
 
     """defining reverse operations of the commutative operators"""
@@ -99,7 +123,9 @@ class Fraction(Session):
         return ans
 
     def __str__(self):
-        return "{}/{}".format(int(self.top), int(self.bottom))
+        if isinstance(self.top, Polynomial) or isinstance(self.bottom, Polynomial):
+            return "({})/({})".format(self.top, self.bottom)
+        return "{}/{}".format(self.top, self.bottom)
 
     def __pow__(self, exponent):
         ans = Fraction(self.top ** exponent, self.bottom ** exponent)
@@ -218,16 +244,17 @@ class Stacks(Session):
                         e.g. "-1"
                     """
 
-                    if inputString[h - 1] == _minus.str_rp:
+                    if inputString[h - 1] == _minus.str_rp and (
+                        len(self.numStack) == 0 or inputString[h - 2] == "("
+                    ):
                         self.numStack.append("0")
 
                     """ add values to stack
                     """
 
-                    if h == i:
+                    if inputString[h:i].strip("()") == "":
                         """prevent empty variables in case of "-sinX" or stuff like that
                         """
-
                         pass
                     else:
                         self.numStack.append(inputString[h:i].strip("()"))
@@ -256,7 +283,7 @@ class Stacks(Session):
                 newStack.append(float(obj))
 
             else:
-                newStack.append(super().checkVar(obj))
+                newStack.append(super().checkVar(obj.strip("()")))
 
         self.numStack = newStack
         return self
@@ -412,6 +439,9 @@ class Variable(Session):
         if isinstance(other, float) or isinstance(other, Fraction):
             return Polynomial([self], [other], [[-1]])
 
+    def __pow__(self, other):
+        return Polynomial([self], [1], [[other]])
+
 
 # fmt:off
 superscript_map = {
@@ -475,7 +505,8 @@ class Polynomial(Session):
                 self.exponent = [i + [0] for i in self.exponent]
 
     def comb(self):
-        """merge similiar terms """
+        """merge similiar terms, drop 0* values, and sort by magnitude of
+        abslute sum of exponent"""
         i = 0
         while i < len(self.coefficient) - 1:
             j = i + 1
@@ -489,11 +520,41 @@ class Polynomial(Session):
                 j += 1
             i += 1
 
-            for c in self.coefficient:
-                if c == 0:
-                    i = self.coefficient.index(c)
-                    self.coefficient.pop(i)
-                    self.exponent.pop(i)
+        for c in self.coefficient:
+            if c == 0:
+                i = self.coefficient.index(c)
+                self.coefficient.pop(i)
+                self.exponent.pop(i)
+
+        def sortFunc(x):
+            return sum(abs(i) for i in x)
+
+        newCoe = []
+        newExp = []
+        for x in sorted(self.exponent, key=sortFunc, reverse=True):
+            i = self.exponent.index(x)
+            newCoe.append(self.coefficient[i])
+            newExp.append(self.exponent[i])
+
+        if len(newCoe) == 0 and len(newExp) == 0:
+            """ handle zero as the only remaining item in Polynomial"""
+            self.coefficient = [0]
+            self.exponent = [[0 for i in self.variable]]
+
+        else:
+            self.coefficient = newCoe
+            self.exponent = newExp
+
+    def highExp(self, var):
+        i = self.variable.index(var)
+        mlist = []
+        for n in self.exponent:
+            mlist.append(n[i])
+
+        if len(mlist) > 0:
+            return max(mlist)
+        else:
+            return 0
 
     def __mul__(self, other):
         if isinstance(other, float) or isinstance(other, Fraction):
@@ -546,6 +607,7 @@ class Polynomial(Session):
                     newExp = [newExp[i] + [vExp[i]] for i in range(0, len(vExp))]
 
             newPoly = Polynomial(all_vars, newCoe, newExp)
+        newPoly.comb()
         return newPoly
 
     __rmul__ = __mul__
@@ -559,7 +621,8 @@ class Polynomial(Session):
             )
 
         elif isinstance(other, Polynomial):
-            allVar = self.variable
+            allVar = []
+            allVar.extend(self.variable)
             for oVar in other.variable:
                 if oVar in allVar:
                     pass
@@ -568,23 +631,27 @@ class Polynomial(Session):
 
             nVars = len(allVar)
 
-            selfAllExp = [[0] * nVars] * len(self.exponent)
+            selfAllExp = [
+                [0 for n in range(nVars)] for i in range(len(self.coefficient))
+            ]
             for var in self.variable:
                 for i in range(len(self.exponent)):
-                    selfAllExp[i][allVar.index(var)] = self.exponent[i][
-                        self.variable.index(var)
-                    ]
+                    val = self.exponent[i][self.variable.index(var)]
+                    selfAllExp[i][allVar.index(var)] = val
 
-            otherAllExp = [[0] * nVars] * len(other.exponent)
+            otherAllExp = [
+                [0 for n in range(nVars)] for i in range(len(other.coefficient))
+            ]
+
             for var in other.variable:
                 for i in range(len(other.exponent)):
-                    otherAllExp[i][allVar.index(var)] = other.exponent[i][
-                        other.variable.index(var)
-                    ]
+                    val = other.exponent[i][other.variable.index(var)]
+                    otherAllExp[i][allVar.index(var)] = val
 
             ans = Polynomial(
                 allVar, self.coefficient + other.coefficient, selfAllExp + otherAllExp,
             )
+
             ans.comb()
 
         elif isinstance(other, Variable):
@@ -593,6 +660,12 @@ class Polynomial(Session):
         return ans
 
     __radd__ = __add__
+
+    def __sub__(self, other):
+        return self + (-1.0 * other)
+
+    def __rsub__(self, other):
+        return (-1.0 * self) + other
 
     def __str__(self):
         """string representation of Polynomial, human readable form"""
@@ -607,7 +680,7 @@ class Polynomial(Session):
                 if self.coefficient[i] == -1 and max(self.exponent[i]) > 0:
                     string += "-"
                 else:
-                    string += "-{}".format(self.coefficient[i])
+                    string += "-{}".format(abs(self.coefficient[i]))
 
             for v in range(0, len(self.variable)):
                 if self.exponent[i][v] == 0:
@@ -648,9 +721,66 @@ class Polynomial(Session):
             return ans
 
         elif isinstance(other, Polynomial):
-            """polynomial division, returns a fraction object"""
-            newFract = Fraction(self, other)
-            return newFract
+            """Polynomial Long division:
+                returns a Polynomial object if found divisible
+                returns a Fraction object if not divisible, i.e. remainder !=0
+
+            """
+
+            var = other.variable[0]
+
+            self.comb()
+            other.comb()
+
+            if self.highExp(var) >= other.highExp(var):
+                flipped = False
+            else:
+                flipped = True
+                inter = self
+                self = other
+                other = inter
+
+            sVarI = self.variable.index(var)
+            oVarI = other.variable.index(var)
+
+            print(self.coefficient[0])
+            print(other.coefficient[0])
+            a = Fraction(self.coefficient[0], other.coefficient[0])
+            b = self.exponent[0][sVarI] - other.exponent[0][oVarI]
+
+            ans = Polynomial([var], [a], [[b]])
+
+            rem = self - (ans * other)
+            while rem.highExp(var) > 0:
+                """first result: a X ^ b"""
+                a = Fraction(rem.coefficient[0], other.coefficient[0])
+                b = rem.exponent[0][sVarI] - other.exponent[0][oVarI]
+
+                ans.newLeaf(var, a, b)
+
+                """ calculate the remainder"""
+                rem = self - (ans * other)
+                rem.comb()
+                ans.comb()
+
+            ans.comb()
+            if rem.coefficient[0] == 0:
+                """remainder is zero, fully divisible"""
+                if flipped:
+                    return 1.0 / ans
+                else:
+                    return ans
+
+            else:
+                """simply rearrange into a Fraction"""
+                if flipped:
+                    newFract = Fraction(other, self)
+                else:
+                    newFract = Fraction(self, other)
+                return newFract
+
+    def __rtruediv__(self, other):
+        return Fraction(1.0, self / other)
 
     def newLeaf(self, var, coe, exp):
         if var in self.variable:

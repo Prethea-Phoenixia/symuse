@@ -1,6 +1,6 @@
 from primitives import *
 
-inputstring = "(5/x+x/5)/x"
+inputstring = "(1/2)-1"
 s = Session()
 a = s.parseNewLine(inputstring)
 a.stack.collapseStack()
